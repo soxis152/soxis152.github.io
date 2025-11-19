@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Procvičování slovní zásoby</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 20px 16px 40px;
+      background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+    }
+
+    h1, h2 {
+      text-align: center;
+      margin: 0;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+    }
+
+    .screen {
+      display: none;
+      background: #ffffff;
+      padding: 24px 20px;
+      border-radius: 16px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+      margin-top: 24px;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn {
+      padding: 10px 18px;
+      font-size: 15px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: #1976d2;
+      color: white;
+      min-width: 90px;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+
+    .btn:hover {
+      background: #145ca5;
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn.btn-secondary {
+      background: #e0e0e0;
+      color: #333;
+    }
+
+    .btn.btn-secondary:hover {
+      background: #d5d5d5;
+    }
+
+    @media (max-width: 480px) {
+      .btn {
+        width: 100%;
+      }
+    }
+
+    .prompt {
+      font-size: 26px;
+      text-align: center;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+
+    .answer-input {
+      width: 100%;
+      font-size: 18px;
+      padding: 10px 12px;
+      box-sizing: border-box;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+    .result {
+      margin-top: 12px;
+      font-size: 15px;
+    }
+
+    .correct {
+      background-color: #dcedc8; /* jemnější zelená */
+    }
+
+    .incorrect {
+      background-color: #ffebee; /* jemnější červená */
+    }
+
+    .buttons-row {
+      margin-top: 12px;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .bottom-buttons {
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    .small-text {
+      font-size: 12px;
+      color: #666;
+      text-align: center;
+      margin-top: 15px;
+    }
+
+    #status-bar {
+      text-align: center;
+      margin-top: 4px;
+      color: #444;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Procvičování slovní zásoby</h1>
+<div id="status-bar" class="small-text"></div>
+
+<!-- Obrazovka 1: výběr úrovně -->
+<div id="screen-levels" class="screen active">
+  <h2>Vyber úroveň</h2>
+  <div class="level-buttons button-row">
+    <button class="btn" data-level="A1">A1</button>
+    <button class="btn" data-level="A2">A2</button>
+    <button class="btn" data-level="B1">B1</button>
+    <button class="btn" data-level="B2">B2</button>
+    <button class="btn" data-level="C1">C1</button>
+    <button class="btn" data-level="C2">C2</button>
+  </div>
+  <p class="small-text">
+    CSV soubory (cefr_a1_word_list.csv, cefr_a2_word_list.csv, …) musí být ve stejné složce jako tato stránka
+    a stránka musí běžet přes http/https (např. <code>python -m http.server</code>).
+  </p>
+</div>
+
+<!-- Obrazovka 2: výběr směru -->
+<div id="screen-direction" class="screen">
+  <h2>Vyber směr procvičování</h2>
+  <div class="direction-buttons button-row">
+    <button class="btn" id="btn-en-to-cz">Angličtina → Čeština</button>
+    <button class="btn" id="btn-cz-to-en">Čeština → Angličtina</button>
+  </div>
+  <div class="bottom-buttons">
+    <button class="btn btn-secondary" id="btn-back-to-levels">Zpět na výběr úrovně</button>
+  </div>
+</div>
+
+<!-- Obrazovka 3: procvičování -->
+<div id="screen-practice" class="screen">
+  <div class="prompt" id="prompt-word"></div>
+  <input id="answer-input" class="answer-input" type="text" autocomplete="off" />
+
+  <div class="buttons-row">
+    <button class="btn" id="btn-check">Ověřit</button>
+    <button class="btn btn-secondary" id="btn-next">Další</button>
+  </div>
+
+  <div class="result" id="result-text"></div>
+
+  <div class="bottom-buttons">
+    <button class="btn btn-secondary" id="btn-back-to-levels-2">Zpět na výběr úrovně</button>
+  </div>
+</div>
+
+<script>
+  // ---- Konfigurace: mapování úrovně na název CSV souboru ----
+  const LEVEL_FILES = {
+    "A1": "cefr_a1_word_list.csv",
+    "A2": "cefr_a2_word_list.csv",
+    "B1": "cefr_b1_word_list.csv",
+    "B2": "cefr_b2_word_list.csv",
+    "C1": "cefr_c1_word_list.csv",
+    "C2": "cefr_c2_word_list.csv"
+  };
+
+  // ---- Stav aplikace ----
+  let currentLevel = null;
+  let words = [];              // pole objektů { en: "...", cz: "..." }
+  let direction = "en_to_cz";  // nebo "cz_to_en"
+  let currentIndex = 0;
+  let currentPair = null;
+
+  // ---- Pomocné funkce pro přepínání obrazovek ----
+  function showScreen(screenId) {
+    document.querySelectorAll(".screen").forEach(screen => {
+      screen.classList.remove("active");
+    });
+    document.getElementById(screenId).classList.add("active");
+  }
+
+  // ---- Načtení slovíček pro danou úroveň přes fetch ----
+  async function loadWordsForLevel(level) {
+    const filename = LEVEL_FILES[level];
+    if (!filename) {
+      alert("Soubor pro úroveň " + level + " není definován.");
+      return [];
+    }
+
+    try {
+      const response = await fetch(filename);
+      if (!response.ok) {
+        alert("Soubor pro úroveň " + level + " nebyl nalezen:\n" + filename);
+        return [];
+      }
+
+      const text = await response.text();
+      return parseCsvSemicolon(text);
+    } catch (e) {
+      console.error(e);
+      alert("Chyba při načítání souboru: " + e.message);
+      return [];
+    }
+  }
+
+  // ---- Parsování CSV (oddělené středníkem) na pole {en, cz} ----
+  function parseCsvSemicolon(text) {
+    const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+    if (lines.length === 0) return [];
+
+    let header = lines[0].split(";");
+    let startIndex = 1;
+
+    // Detekce, zda první řádek vypadá jako header
+    let hasHeader = header.some(h => /english|anglicky|czech|česky/i.test(h));
+    if (!hasHeader) {
+      header = [];
+      startIndex = 0;
+    }
+
+    let engIndex = 0;
+    let czeIndex = 1;
+
+    if (hasHeader) {
+      const headerLower = header.map(h => h.toLowerCase());
+      headerLower.forEach((h, i) => {
+        if (h.includes("english") || h.includes("anglicky")) engIndex = i;
+        if (h.includes("czech") || h.includes("česky")) czeIndex = i;
+      });
+    }
+
+    const result = [];
+    for (let i = startIndex; i < lines.length; i++) {
+      const row = lines[i].split(";");
+      if (row.length <= Math.max(engIndex, czeIndex)) continue;
+
+      const en = (row[engIndex] || "").trim();
+      const cz = (row[czeIndex] || "").trim();
+      if (en && cz) {
+        result.push({ en, cz });
+      }
+    }
+    return result;
+  }
+
+  // ---- Výběr úrovně ----
+  document.querySelectorAll(".level-buttons button").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      currentLevel = btn.getAttribute("data-level");
+      words = await loadWordsForLevel(currentLevel);
+
+      if (!words || words.length === 0) {
+        return;
+      }
+
+      shuffleArray(words);
+      showScreen("screen-direction");
+    });
+  });
+
+  // ---- Výběr směru EN->CZ / CZ->EN ----
+  document.getElementById("btn-en-to-cz").addEventListener("click", () => {
+    direction = "en_to_cz";
+    startPractice();
+  });
+
+  document.getElementById("btn-cz-to-en").addEventListener("click", () => {
+    direction = "cz_to_en";
+    startPractice();
+  });
+
+  // ---- Tlačítka "Zpět" ----
+  document.getElementById("btn-back-to-levels").addEventListener("click", () => {
+    showScreen("screen-levels");
+  });
+
+  document.getElementById("btn-back-to-levels-2").addEventListener("click", () => {
+    showScreen("screen-levels");
+  });
+
+  // ---- Logika procvičování ----
+  function startPractice() {
+    if (!words || words.length === 0) {
+      alert("Nebyla načtena žádná slovíčka.");
+      return;
+    }
+
+    // status bar (úroveň + směr)
+    const statusBar = document.getElementById("status-bar");
+    const dirText = direction === "en_to_cz"
+      ? "Angličtina → Čeština"
+      : "Čeština → Angličtina";
+    statusBar.textContent = `Úroveň: ${currentLevel} · Směr: ${dirText}`;
+
+    currentIndex = 0;
+    shuffleArray(words);
+    nextWord();
+    showScreen("screen-practice");
+  }
+
+  function nextWord() {
+    if (!words || words.length === 0) return;
+
+    if (currentIndex >= words.length) {
+      shuffleArray(words);
+      currentIndex = 0;
+    }
+
+    currentPair = words[currentIndex];
+    currentIndex++;
+
+    const promptElement = document.getElementById("prompt-word");
+    const inputElement = document.getElementById("answer-input");
+    const resultElement = document.getElementById("result-text");
+
+    if (direction === "en_to_cz") {
+      promptElement.textContent = currentPair.en;
+    } else {
+      promptElement.textContent = currentPair.cz;
+    }
+
+    inputElement.value = "";
+    inputElement.classList.remove("correct", "incorrect");
+    resultElement.textContent = "";
+    inputElement.focus();
+  }
+
+  function checkAnswer() {
+    if (!currentPair) return;
+
+    const inputElement = document.getElementById("answer-input");
+    const resultElement = document.getElementById("result-text");
+
+    const userAnswer = inputElement.value.trim().toLowerCase();
+    const en = currentPair.en;
+    const cz = currentPair.cz;
+
+    let correctField;
+    if (direction === "en_to_cz") {
+      correctField = cz;
+    } else {
+      correctField = en;
+    }
+
+    const variants = [];
+    correctField.replace("/", ",").split(",").forEach(part => {
+      const v = part.trim().toLowerCase();
+      if (v) variants.push(v);
+    });
+
+    if (variants.includes(userAnswer)) {
+      inputElement.classList.remove("incorrect");
+      inputElement.classList.add("correct");
+      resultElement.textContent = "Správně!";
+    } else {
+      inputElement.classList.remove("correct");
+      inputElement.classList.add("incorrect");
+      resultElement.textContent = "Nesprávně. Správná odpověď: " + correctField;
+    }
+  }
+
+  // Tlačítka v procvičování
+  document.getElementById("btn-next").addEventListener("click", nextWord);
+  document.getElementById("btn-check").addEventListener("click", checkAnswer);
+
+  // Enter = ověřit
+  document.getElementById("answer-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      checkAnswer();
+    }
+  });
+
+  // ---- Pomocná funkce: zamíchání pole (Fisher-Yates) ----
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+</script>
+</body>
+</html>
